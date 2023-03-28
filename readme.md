@@ -34,6 +34,13 @@ Each of the subdirectory should contain the vector and raster data files for tha
     - The CRP logo file
     - Icons for fire stations, health facilities, police stations, and schools, if these are part of the layers shown in the Shiny app
 
+## Deployment
+
+Whenever possible, deploy the Shiny app to the World Bank Shiny server https://datanalytics.worldbank.org/connect/.  
+
+When it is not possible or suitable to deploy the Shiny app on the World Bank Shiny server, it can be deployed through CRP's shinyapps.io account.
+Contact Rui Su for the log in info.
+
 ## Contact
 
 For inquiries, email rsu@worldbank.org.
