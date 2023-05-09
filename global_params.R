@@ -1,9 +1,16 @@
+# s2_source <- "https://cran.r-project.org/src/contrib/Archive/s2/s2_1.1.1.tar.gz"
+# install.packages(s2_source, repos = NULL, type = "source")
+# rgdal_source <- "https://cran.r-project.org/src/contrib/Archive/rgdal/rgdal_1.6-4.tar.gz"
+# install.packages(rgdal_source, repos = NULL, type = "source")
+# install.packages("versions")
+# versions::install.versions("s2", "1.1.1")
+# versions::install.versions("rgdal", "1.6-2")
 library(shiny)
 library(leaflet)
-library(tidyverse)
 library(raster)
 library(sf)
-library(rgdal)
+# library(rgdal)
+library(tidyverse)
 
 # Read raster function 
 read_raster <- function(folder, raster_name, raster_band = NULL) {

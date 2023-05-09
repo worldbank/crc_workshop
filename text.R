@@ -1,4 +1,5 @@
 # Introduction --------------------------------
+site_title <- 'Climate-Resilient Cities Workshop in Africa'
 p1_1 <- 'Welcome to the'
 p1_2 <- 'Spatial Layers Viewer'
 p1_3 <- 'for the 2023 Climate-Resilient Cities Workshop in Bosnia and Herzegovina. This Viewer provides an interactive and collaborative way to explore some of the key characteristics of your cities and the resilience challenges they face.'

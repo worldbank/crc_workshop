@@ -1,6 +1,7 @@
 library(shinythemes)
 library(shinyWidgets)
 
+# Before proceeding, set working directory to source file location
 source('global_params.R')
 source('cities.R')
 source('text.R')
@@ -44,8 +45,8 @@ layer_toggle <- function(box_id, box_lab, box_def = F, slider_def = 0.9) {
 }
 
 city_tab <- function(city) {
-  city_prefix <- case_when(city == 'Sarajevo' ~ 'sa',
-                           city == 'Tuzla' ~ 'tu')
+  city_prefix <- city_prefixes[city_folders == city]
+
   tabPanel(city,
            sidebarLayout(
              # Sidebar -------------------------------
@@ -104,7 +105,7 @@ city_tab <- function(city) {
 ui <- navbarPage(
   theme = shinytheme('yeti'),
   
-  'Climate-Resilient Cities Workshop in Bosnia and Herzegovina',
+  site_title,
   id = 'main',
   
   # Tab: Introduction -------------------------------------
@@ -152,26 +153,14 @@ ui <- navbarPage(
                     br(), br(), br(), br(),
                     h4('Select a city'),
                     br(), br(),
-                    # actionBttn('go_ni', 'Nis', style = 'minimal', color = 'success'),
-                    # br(), br(),
-                    # actionBttn('go_no', 'Novi Sad', style = 'minimal', color = 'success'),
-                    # br(), br(),
-                    # actionBttn('go_pr', 'Pristina', style = 'minimal', color = 'success'),
-                    # br(), br(),
-                    actionBttn('go_sa', 'Sarajevo', style = 'minimal', color = 'success'),
-                    br(), br(),
-                    actionBttn('go_tu', 'Tuzla', style = 'minimal', color = 'success'))
+                    apply(cities_df, 1, function(city) {
+                      inputId <- paste0('go_', city['prefix'])
+                      actionBttn(inputId, city['city'], style  = 'minimal', color = 'success')}))
            )),
   
   # Tabs: City Profiles ---------------------------------------
-  navbarMenu('City Profiles',
-             # city_tab('Nis'),
-             # city_tab('Novi Sad'),
-             # city_tab('Pristina'),
-             city_tab('Sarajevo'),
-             city_tab('Tuzla')
-  )
-  
+  do.call(navbarMenu, c("City Profiles", lapply(cities_df$city, city_tab))),
+
   # Tab: Climate Projections --------------------------
   # tabPanel('Regional Climate Projections',
   #          sidebarLayout(
@@ -225,10 +214,35 @@ server <- function(input, output, session) {
   # output$pr_img <- renderImage(list(src = 'pristina.png'), deleteFile = F)
   # output$sa_img <- renderImage(list(src = 'sarajevo.png'), deleteFile = F)
   # output$ti_img <- renderImage(list(src = 'tirana.png'), deleteFile = F)
-  
+
   # Page navigation --------------------------
-  observeEvent(input$go_sa, updateNavbarPage(session, 'main', selected = 'Sarajevo'))
-  observeEvent(input$go_tu, updateNavbarPage(session, 'main', selected = 'Tuzla'))
+  # apply(cities_df, 1, function(city) {
+  #   inputId <- paste0('go_', city['prefix'])
+  #   observeEvent(input[[inputId]], updateNavbarPage(session, 'main', selected = city['city']))
+  # })
+  # Function for quickly writing the observeEvent functions because
+  # the above apply function does not appear to work
+#   # apply(cities_df, 1, function(city) {
+#   #   inputId <- paste0('go_', city['prefix'])
+#   #   paste0("observeEvent(input$", inputId, ", updateNavbarPage(session, 'main', selected = '", city['city'], "'))")
+#   # }) %>% cat(sep = "\n")
+#   
+  observeEvent(input$go_abi, updateNavbarPage(session, 'main', selected = 'Abidjan'))
+  observeEvent(input$go_add, updateNavbarPage(session, 'main', selected = 'Addis Ababa'))
+  observeEvent(input$go_ban, updateNavbarPage(session, 'main', selected = 'Banjul'))
+  observeEvent(input$go_bra, updateNavbarPage(session, 'main', selected = 'Brazzaville'))
+  observeEvent(input$go_buf, updateNavbarPage(session, 'main', selected = 'Buffalo City'))
+  observeEvent(input$go_buj, updateNavbarPage(session, 'main', selected = 'Bujumbura'))
+  observeEvent(input$go_kam, updateNavbarPage(session, 'main', selected = 'Kampala'))
+  observeEvent(input$go_kig, updateNavbarPage(session, 'main', selected = 'Kigali'))
+  observeEvent(input$go_kis, updateNavbarPage(session, 'main', selected = 'Kisumu'))
+  observeEvent(input$go_lag, updateNavbarPage(session, 'main', selected = 'Lagos'))
+  observeEvent(input$go_lib, updateNavbarPage(session, 'main', selected = 'Libreville'))
+  observeEvent(input$go_mom, updateNavbarPage(session, 'main', selected = 'Mombasa'))
+  observeEvent(input$go_nai, updateNavbarPage(session, 'main', selected = 'Nairobi'))
+  observeEvent(input$go_nga, updateNavbarPage(session, 'main', selected = 'Ngaoundere'))
+  observeEvent(input$go_por, updateNavbarPage(session, 'main', selected = 'Port Louis'))
+  observeEvent(input$go_vic, updateNavbarPage(session, 'main', selected = 'Victoria'))
   
   # Basemap function -------------------------------
   basemap <- function(data) {
@@ -252,9 +266,13 @@ server <- function(input, output, session) {
     layer_group <- input_name
     feature_alpha_name <- paste0(input_name, '_alpha')
     observe({
+      notif_id <- paste0(input_name, '_notif')
       if (!input[[input_name]]) {
         leafletProxy(map_id) %>%
           clearGroup(group = layer_group)
+      } else if (is.null(feature_var)) {
+        showNotification(ui = 'No information on this layer for this city',
+                         duration = NULL, id = notif_id)
       } else if (str_detect(input_name, 'aoi')) {
         leafletProxy(map_id, data = feature_var) %>%
           clearGroup(group = layer_group) %>%
@@ -272,9 +290,14 @@ server <- function(input, output, session) {
     layer_group <- input_name
     feature_alpha_name <- paste0(input_name, '_alpha')
     observe({
+      notif_id <- paste0(input_name, '_notif')
       if (!input[[input_name]]) {
         leafletProxy(map_id) %>%
           clearGroup(group = layer_group)
+        removeNotification(notif_id)
+      } else if (is.null(feature_var)) {
+        showNotification(ui = 'No information on this layer for this city',
+                         duration = NULL, id = notif_id)
       } else {
         leafletProxy(map_id, data = feature_var) %>%
           clearGroup(group = layer_group) %>%
@@ -288,10 +311,14 @@ server <- function(input, output, session) {
     raster_alpha_name <- paste0(input_name, '_alpha')
     leg_id <- paste0(input_name, '_leg')
     observe({
+      notif_id <- paste0(input_name, '_notif')
       if (!input[[input_name]]) {
         leafletProxy(map_id) %>%
           clearGroup(group = layer_group) %>%
           removeControl(leg_id)
+      } else if (is.null(raster_var) | length(raster_var) <= 1) {
+        showNotification(ui = 'No information on this layer for this city',
+                         duration = NULL, id = notif_id)
       } else {
         leafletProxy(map_id) %>%
           clearGroup(group = layer_group) %>%
@@ -307,10 +334,14 @@ server <- function(input, output, session) {
     raster_alpha_name <- paste0(input_name, '_alpha')
     leg_id <- paste0(input_name, '_leg')
     observe({
+      notif_id <- paste0(input_name, '_notif')
       if (!input[[input_name]]) {
         leafletProxy(map_id) %>%
           clearGroup(group = layer_group) %>%
           removeControl(leg_id)
+      } else if (is.null(raster_var) | length(raster_var) <= 1) {
+        showNotification(ui = 'No information on this layer for this city',
+                         duration = NULL, id = notif_id)
       } else {
         leafletProxy(map_id) %>%
           clearGroup(group = layer_group) %>%
@@ -321,12 +352,12 @@ server <- function(input, output, session) {
       }
     })
   }
-  quake <- function(input_name, lat, lon) {
+  quake_fn <- function(input_name, lat, lon) {
     notif_id <- paste0(input_name, '_notif')
     observe({
       if (input[[input_name]]) {
         showNotification(ui = '',
-                         action = a(href = paste0('https://maps.openquake.org/map/global-seismic-hazard-map/#8/', lat, '/', lon), 
+                         action = a(href = paste0('https://maps.openquake.org/map/global-seismic-hazard-map/#8/', lat, '/', lon),
                                     'View the Global Seismic Hazard Map',
                                     target = '_blank'),
                          duration = NULL, id = notif_id)
@@ -335,7 +366,7 @@ server <- function(input, output, session) {
       }
     })
   }
-  road <- function(map_id, input_name, feature_var, feature_col) {
+  road_fn <- function(map_id, input_name, feature_var, feature_col) {
     layer_group <- input_name
     feature_alpha_name <- paste0(input_name, '_alpha')
     leg_id <- paste0(input_name, '_leg')
@@ -347,11 +378,11 @@ server <- function(input, output, session) {
       } else {
         leafletProxy(map_id, data = feature_var) %>%
           clearGroup(group = layer_group) %>%
-          addPolylines(color = ~feature_col(edge_centr), 
-                       weight = ~ifelse(highway %in% c('primary', 'trunk', 'motorway'), 3, 1), 
+          addPolylines(color = ~feature_col(edge_centr),
+                       weight = ~ifelse(highway %in% c('primary', 'trunk', 'motorway'), 3, 1),
                        opacity = input[[feature_alpha_name]], label = ~name,
                        group = layer_group) %>%
-          addLegend(pal = feature_col, values = feature_var[['edge_centr']], title = 'Road criticality', 
+          addLegend(pal = feature_col, values = feature_var[['edge_centr']], title = 'Road criticality',
                     layerId = leg_id, opacity = 0.8, bins = 3, position = 'bottomright')
       }
     })
@@ -362,7 +393,7 @@ server <- function(input, output, session) {
   clear_layers <- function(city_prefix) {
     observeEvent(input[[paste0(city_prefix, '_clear')]], {lapply(all_layers[[city_prefix]], uncheck)})
   }
-  
+
   # Plot functions -------------------------
   render_plot_ui <- function(output_name, input_name0, input_name1) {
     output_name0 <- paste0(input_name0, '_plot')
@@ -401,115 +432,86 @@ server <- function(input, output, session) {
       scale_x_continuous(breaks = seq(1985, 2015, 10)) +
       labs(subtitle = paste(city, 'Built-Up Area Historical Growth (sq km)'))
   }
-  
+
   # Tabs: City Profiles -------------------------------
   # Set up basemap ----------------------------
-  output$sa_map <- renderLeaflet(basemap(aoi$sa)) %>% bindCache('sa_basemap')
-  output$tu_map <- renderLeaflet(basemap(aoi$tu)) %>% bindCache('tu_basemap')
+  # Doesn't appear to work, requiring writing each city's output individually
+  # for (prefix in cities_df$prefix) {
+  #   element <- paste0(prefix, "_map")
+  #   map_name <- paste0(prefix, "_basemap")
+  #   output[[element]] <- renderLeaflet(basemap(aoi[[prefix]])) %>% bindCache(map_name)
+  # }
+  # Because the for loop doesn't appear to work, a loop for writing the below objects
+  # for (prefix in cities_df$prefix) {
+  #   element <- paste0(prefix, "_map")
+  #   map_name <- paste0(prefix, "_basemap")
+  #   paste0("output$", element, " <- renderLeaflet(basemap(aoi$", prefix, ")) %>% bindCache('", map_name, "')") %>%
+  #     cat(sep = "\n")
+  # }
+  
+  output$abi_map <- renderLeaflet(basemap(aoi$abi)) %>% bindCache('abi_basemap')
+  output$add_map <- renderLeaflet(basemap(aoi$add)) %>% bindCache('add_basemap')
+  output$ban_map <- renderLeaflet(basemap(aoi$ban)) %>% bindCache('ban_basemap')
+  output$bra_map <- renderLeaflet(basemap(aoi$bra)) %>% bindCache('bra_basemap')
+  output$buf_map <- renderLeaflet(basemap(aoi$buf)) %>% bindCache('buf_basemap')
+  output$buj_map <- renderLeaflet(basemap(aoi$buj)) %>% bindCache('buj_basemap')
+  output$kam_map <- renderLeaflet(basemap(aoi$kam)) %>% bindCache('kam_basemap')
+  output$kig_map <- renderLeaflet(basemap(aoi$kig)) %>% bindCache('kig_basemap')
+  output$kis_map <- renderLeaflet(basemap(aoi$kis)) %>% bindCache('kis_basemap')
+  output$lag_map <- renderLeaflet(basemap(aoi$lag)) %>% bindCache('lag_basemap')
+  output$lib_map <- renderLeaflet(basemap(aoi$lib)) %>% bindCache('lib_basemap')
+  output$mom_map <- renderLeaflet(basemap(aoi$mom)) %>% bindCache('mom_basemap')
+  output$nai_map <- renderLeaflet(basemap(aoi$nai)) %>% bindCache('nai_basemap')
+  output$nga_map <- renderLeaflet(basemap(aoi$nga)) %>% bindCache('nga_basemap')
+  output$por_map <- renderLeaflet(basemap(aoi$por)) %>% bindCache('por_basemap')
+  output$vic_map <- renderLeaflet(basemap(aoi$vic)) %>% bindCache('vic_basemap')
+
+  
   
   # Toggle layers ------------------------------
-  
-  # Sarajevo
-  feature_poly('sa_map', 'sa_aoi', aoi$sa)
-  # feature_poly('sa_map', 'sa_admin', admin$sa, 'name_en')
-  raster_continuous('sa_map', 'sa_sol', sol$sa, sol_col$sa, sol_val$sa, 'Economic hotspots')
-  raster_continuous('sa_map', 'sa_soc', soc$sa, soc_col$sa, soc_val$sa, 'Economic hotspots change')
-  raster_continuous('sa_map', 'sa_pop', pop$sa, pop_col$sa, pop_val$sa, 'Population')
-  raster_discrete('sa_map', 'sa_wsf', wsf$sa, wsf_col$sa, wsf_val$sa, 'Built-up area')
-  # raster_continuous('sa_map', 'sa_imperv', imperv$sa, imperv_col$sa, imperv_val$sa, 'Imperviousness', '%')
-  raster_continuous('sa_map', 'sa_temp', temp$sa, temp_col$sa, temp_val$sa, 'Temperature', '°C')
-  raster_discrete('sa_map', 'sa_green', green$sa, green_col$sa, green_val$sa, 'Green space')
-  raster_discrete('sa_map', 'sa_forest', forest$sa, forest_col$sa, forest_val$sa, 'Forest cover')
-  raster_discrete('sa_map', 'sa_forest_loss', forest_loss$sa, forest_loss_col$sa, forest_loss_val$sa, 'Forest cover loss')
-  raster_continuous('sa_map', 'sa_air', air$sa, air_col$sa, air_val$sa, 'PM2.5 concentration', 'μg/m3')
-  raster_discrete('sa_map', 'sa_fu', fu$sa, fu_col$sa, fu_val$sa, 'Fluvial flood')
-  raster_discrete('sa_map', 'sa_pu', pu$sa, pu_col$sa, pu_val$sa, 'Pluvial flood')
-  feature_point('sa_map', 'sa_fire', fire$sa, fire_icon)
-  feature_point('sa_map', 'sa_health', health$sa, health_icon)
-  feature_point('sa_map', 'sa_police', police$sa, police_icon)
-  feature_point('sa_map', 'sa_schools', schools$sa, schools_icon)
-  raster_discrete('sa_map', 'sa_ls', ls$sa, ls_col$sa, ls_val$sa, 'Landslide susceptibility')
-  raster_discrete('sa_map', 'sa_lc', lc$sa, lc_col$sa, lc_val$sa, 'Land cover')
-  # road('sa_map', 'sa_road', road$sa, road_col$sa)
-  quake('sa_quake', '43.894', '18.383')
-  observe({
-    if (!input$sa_road) {
-      leafletProxy('sa_map') %>%
-        clearGroup(group = 'sa_road') %>%
-        removeControl('sa_road_leg')
-    } else {
-      leafletProxy('sa_map', data = road_sa) %>%
-        clearGroup(group = 'sa_road') %>%
-        addPolylines(color = ~road_col$sa(edge_centr), 
-                     weight = ~ifelse(highway %in% c('primary', 'trunk', 'motorway'), 3, 1), 
-                     opacity = input$sa_road_alpha, label = ~name,
-                     group = 'sa_road') %>%
-        addLegend(pal = road_col$sa, values = road_sa$edge_centr, title = 'Road criticality',
-                  layerId = 'sa_road_leg', opacity = 0.8, bins = 3, position = 'bottomright')
-    }
+  # # All cities
+  lapply(cities_df$prefix, function(prefix) {
+    map_name <- paste0(prefix, "_map")
+    feature_poly(map_name, paste0(prefix, '_aoi'), aoi[[prefix]])
+    # feature_poly(map_name, paste0(prefix, '_admin'), admin[[prefix]], 'name')
+    raster_continuous(map_name, paste0(prefix, '_sol'), sol[[prefix]], sol_col[[prefix]], sol_val[[prefix]], 'Economic hotspots')
+    raster_continuous(map_name, paste0(prefix, '_soc'), soc[[prefix]], soc_col[[prefix]], soc_val[[prefix]], 'Economic hotspots change')
+    raster_continuous(map_name, paste0(prefix, '_pop'), pop[[prefix]], pop_col[[prefix]], pop_val[[prefix]], 'Population')
+    raster_discrete(map_name, paste0(prefix, '_wsf'), wsf[[prefix]], wsf_col[[prefix]], wsf_val[[prefix]], 'Built-up area')
+    raster_continuous(map_name, paste0(prefix, '_temp'), temp[[prefix]], temp_col[[prefix]], temp_val[[prefix]], 'Temperature', '°C')
+    raster_discrete(map_name, paste0(prefix, '_green'), green[[prefix]], green_col[[prefix]], green_val[[prefix]], 'Green space')
+    raster_discrete(map_name, paste0(prefix, '_forest'), forest[[prefix]], forest_col[[prefix]], forest_val[[prefix]], 'Forest cover')
+    raster_discrete(map_name, paste0(prefix, '_forest_loss'), forest_loss[[prefix]], forest_loss_col[[prefix]], forest_loss_val[[prefix]], 'Forest cover loss')
+    raster_continuous(map_name, paste0(prefix, '_air'), air[[prefix]], air_col[[prefix]], air_val[[prefix]], 'PM2.5 concentration', 'μg/m3')
+    raster_discrete(map_name, paste0(prefix, '_fu'), fu[[prefix]], fu_col[[prefix]], fu_val[[prefix]], 'Fluvial flood')
+    raster_discrete(map_name, paste0(prefix, '_pu'), pu[[prefix]], pu_col[[prefix]], pu_val[[prefix]], 'Pluvial flood')
+    feature_point(map_name, paste0(prefix, '_fire'), fire[[prefix]], fire_icon)
+    feature_point(map_name, paste0(prefix, '_health'), health[[prefix]], health_icon)
+    feature_point(map_name, paste0(prefix, '_police'), police[[prefix]], police_icon)
+    feature_point(map_name, paste0(prefix, '_schools'), schools[[prefix]], schools_icon)
+    raster_discrete(map_name, paste0(prefix, '_ls'), ls[[prefix]], ls_col[[prefix]], ls_val[[prefix]], 'Landslide susceptibility')
+    raster_discrete(map_name, paste0(prefix, '_lc'), lc[[prefix]], lc_col[[prefix]], lc_val[[prefix]], 'Land cover')
+    road_fn(map_name, paste0(prefix, '_road'), road[[prefix]], road_col[[prefix]])
+    quake_fn(paste0(prefix, '_quake'), '44.542', '18.641')
   })
   
-  # Tuzla
-  feature_poly('tu_map', 'tu_aoi', aoi$tu)
-  # feature_poly('tu_map', 'tu_admin', admin$tu, 'name')
-  raster_continuous('tu_map', 'tu_sol', sol$tu, sol_col$tu, sol_val$tu, 'Economic hotspots')
-  raster_continuous('tu_map', 'tu_soc', soc$tu, soc_col$tu, soc_val$tu, 'Economic hotspots change')
-  raster_continuous('tu_map', 'tu_pop', pop$tu, pop_col$tu, pop_val$tu, 'Population')
-  raster_discrete('tu_map', 'tu_wsf', wsf$tu, wsf_col$tu, wsf_val$tu, 'Built-up area')
-  # raster_continuous('tu_map', 'tu_imperv', imperv$ti, imperv_col$ti, imperv_val$ti, 'Imperviousness', '%')
-  raster_continuous('tu_map', 'tu_temp', temp$tu, temp_col$tu, temp_val$tu, 'Temperature', '°C')
-  raster_discrete('tu_map', 'tu_green', green$tu, green_col$tu, green_val$tu, 'Green space')
-  raster_discrete('tu_map', 'tu_forest', forest$tu, forest_col$tu, forest_val$tu, 'Forest cover')
-  raster_discrete('tu_map', 'tu_forest_loss', forest_loss$tu, forest_loss_col$tu, forest_loss_val$tu, 'Forest cover loss')
-  raster_continuous('tu_map', 'tu_air', air$tu, air_col$tu, air_val$tu, 'PM2.5 concentration', 'μg/m3')
-  raster_discrete('tu_map', 'tu_fu', fu$tu, fu_col$tu, fu_val$tu, 'Fluvial flood')
-  raster_discrete('tu_map', 'tu_pu', pu$tu, pu_col$tu, pu_val$tu, 'Pluvial flood')
-  feature_point('tu_map', 'tu_fire', fire$tu, fire_icon)
-  feature_point('tu_map', 'tu_health', health$tu, health_icon)
-  feature_point('tu_map', 'tu_police', police$tu, police_icon)
-  feature_point('tu_map', 'tu_schools', schools$tu, schools_icon)
-  raster_discrete('tu_map', 'tu_ls', ls$tu, ls_col$tu, ls_val$tu, 'Landslide susceptibility')
-  raster_discrete('tu_map', 'tu_lc', lc$tu, lc_col$tu, lc_val$tu, 'Land cover')
-  # road('ti_map', 'ti_road', road$ti, road_col$ti)
-  quake('tu_quake', '44.542', '18.641')
-  observe({
-    if (!input$tu_road) {
-      leafletProxy('tu_map') %>%
-        clearGroup(group = 'tu_road') %>%
-        removeControl('tu_road_leg')
-    } else {
-      leafletProxy('tu_map', data = road_tu) %>%
-        clearGroup(group = 'tu_road') %>%
-        addPolylines(color = ~road_col$tu(edge_centr), 
-                     weight = ~ifelse(highway %in% c('primary', 'trunk', 'motorway'), 3, 1), 
-                     opacity = input$tu_road_alpha, label = ~name,
-                     group = 'tu_road') %>%
-        addLegend(pal = road_col$tu, values = road_tu$edge_centr, title = 'Road criticality',
-                  layerId = 'tu_road_leg', opacity = 0.8, bins = 3, position = 'bottomright')
-    }
-  })
-  
-  
+
   # Clear layers -----------------------------
   lapply(city_prefixes, clear_layers)
   # observeEvent(input$sa_clear, {lapply(all_layers$sa, uncheck)})
-  
+
   # Plot --------------------------------
   lapply(city_prefixes, {
     function(prefix) render_plot_ui(paste0(prefix, '_plot'), paste0(prefix, '_pop'), paste0(prefix, '_wsf'))
   })
-  # output$ni_pop_plot <- renderPlot(pop_plot(pop_csv$ni, 'Nis')) %>% bindCache('ni_pop')
-  # output$no_pop_plot <- renderPlot(pop_plot(pop_csv$no, 'Novi Sad')) %>% bindCache('no_pop')
-  # output$pr_pop_plot <- renderPlot(pop_plot(pop_csv$pr, 'Pristina')) %>% bindCache('pr_pop')
-  output$sa_pop_plot <- renderPlot(pop_plot(pop_csv$sa, 'Sarajevo')) %>% bindCache('sa_pop')
-  output$tu_pop_plot <- renderPlot(pop_plot(pop_csv$tu, 'Tuzla')) %>% bindCache('tu_pop')
-  # output$ni_wsf_plot <- renderPlot(wsf_plot(wsf_csv$ni, 'Nis')) %>% bindCache('ni_wsf')
-  # output$no_wsf_plot <- renderPlot(wsf_plot(wsf_csv$no, 'Novi Sad')) %>% bindCache('no_wsf')
-  # output$pr_wsf_plot <- renderPlot(wsf_plot(wsf_csv$pr, 'Pristina')) %>% bindCache('pr_wsf')
-  output$sa_wsf_plot <- renderPlot(wsf_plot(wsf_csv$sa, 'Sarajevo')) %>% bindCache('sa_wsf')
-  output$tu_wsf_plot <- renderPlot(wsf_plot(wsf_csv$tu, 'Tuzla')) %>% bindCache('tu_wsf')
-  
-  
+  apply(cities_df, 1, function(city) {
+    prefix <- city["prefix"]
+    pop_id <- paste0(prefix, "_pop_plot")
+    wsf_id <- paste0(prefix, "_wsf_plot")
+    output[[pop_id]] <- renderPlot(pop_plot(pop_csv[[prefix]], city['city'])) %>% bindCache(paste0(prefix, '_pop'))
+    output[[wsf_id]] <- renderPlot(wsf_plot(wsf_csv[[prefix]], city['city'])) %>% bindCache(paste0(prefix, '_wsf'))
+  })
+
   # Tab: Climate Projections ------------------------------
   # Show variable definition ------------------------
   # output$wb_def <- renderText({
@@ -526,7 +528,7 @@ server <- function(input, output, session) {
   #   }
   # }) %>%
   #   bindCache(input$wb, 'def')
-  
+
   # Set up basemap -------------------------
   # output$wb_map <- renderLeaflet({
   #   leaflet(wb_cities) %>%
@@ -541,7 +543,7 @@ server <- function(input, output, session) {
   #                                                     autoZIndex = F)) %>%
   #     addCircleMarkers(fillColor = 'darkgrey', fillOpacity = 0.8, stroke = F, label = ~city, radius = 5)
   # })
-  
+
   # Toggle layers ----------------------------
   # wb_raster_map <- reactive({
   #   req(input$wb != '')
@@ -550,7 +552,7 @@ server <- function(input, output, session) {
   #   wb_rasters[[var]][[time]]
   # }) %>%
   #   bindCache(input$wb)
-  # 
+  #
   # wb_pal <- reactive({
   #   req(input$wb != '')
   #   if (str_detect(input$wb, 'cdd')) {
@@ -566,7 +568,7 @@ server <- function(input, output, session) {
   #   }
   # }) %>%
   #   bindCache(input$wb, 'palette')
-  
+
   # wb_raster_col_reverse <- reactive({
   #   req(input$wb != '')
   #   if (str_detect(input$wb, 'WBGT')) {
@@ -574,16 +576,16 @@ server <- function(input, output, session) {
   #   } else {
   #     F
   #   }
-  # }) %>% 
+  # }) %>%
   #   bindCache(input$wb, 'reverse')
-  # 
+  #
   # wb_raster_col <- reactive({
   #   req(input$wb != '')
   #   colorNumeric(wb_pal(), values(wb_raster_map()), na.color = 'transparent',
   #                reverse = wb_raster_col_reverse())
   # }) %>%
   #   bindCache(input$wb, 'color')
-  
+
   # wb_leg_title <- reactive({
   #   req(input$wb != '')
   #   if (str_detect(input$wb, 'cdd')) {
@@ -599,7 +601,7 @@ server <- function(input, output, session) {
   #   }
   # }) %>%
   #   bindCache(input$wb, 'leg_title')
-  
+
   # wb_lab_suffix <- reactive({
   #   req(input$wb != '')
   #   if (str_detect(input$wb, 'WBGT')) {
@@ -610,7 +612,7 @@ server <- function(input, output, session) {
   #     ''
   #   }
   # })
-  
+
   # observe({
   #   req(input$wb != '')
   #   leafletProxy('wb_map') %>%
@@ -618,18 +620,18 @@ server <- function(input, output, session) {
   #     removeControl('wb_leg') %>%
   #     addRasterImage(wb_raster_map(), opacity = input$wb_alpha,
   #                    project = F, group = 'wb_raster', colors = wb_raster_col()) %>%
-  #     addLegend(pal = wb_raster_col(), values = values(wb_raster_map()), title = wb_leg_title(), layerId = 'wb_leg', 
+  #     addLegend(pal = wb_raster_col(), values = values(wb_raster_map()), title = wb_leg_title(), layerId = 'wb_leg',
   #               opacity = 0.9, bins = 3,
   #               labFormat = labelFormat(suffix = wb_lab_suffix()),
   #               position = 'bottomright')
   # })
-  
+
   # Show plot --------------------------------
 #   wb_plot_file <- reactive({
 #     paste0('www/wb_plots/', input$wb, '.png')
 #   }) %>%
 #     bindCache(input$wb, 'plot')
-#   
+#
 #   output$wb_plot <- renderImage({
 #     list(src = wb_plot_file(),
 #          width = 512)
