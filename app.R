@@ -7,7 +7,7 @@ source('cities.R')
 source('text.R')
 
 # UI elements ----------------------------------------
-intro_text_style <- 'text-align: center; color: grey; line-height: 2em; padding-left: 6em; padding-right: 6em; '
+intro_text_style <- 'text-align: left; color: grey; line-height: 2em; padding-left: 6em; padding-right: 6em; '
 
 sb_l <- 8   # sidebar left column width
 sb_r <- 4   # sidebar right column width
@@ -111,6 +111,7 @@ ui <- navbarPage(
   # Tab: Introduction -------------------------------------
   tabPanel('Introduction',
            # setBackgroundImage(src = 'home_bg.jpg'),
+           tags$style("button {text-align: left}"),
            fluidRow(
              column(9,
                     fluidRow(
@@ -155,66 +156,17 @@ ui <- navbarPage(
                     br(), br(),
                     apply(cities_df, 1, function(city) {
                       inputId <- paste0('go_', city['prefix'])
-                      actionBttn(inputId, city['city'], style  = 'minimal', color = 'success')}))
+                      button <- actionBttn(inputId, city['city'], style  = 'minimal', color = 'success')
+                      return(list(button, br()))
+                    }))
            )),
   
   # Tabs: City Profiles ---------------------------------------
   do.call(navbarMenu, c("City Profiles", lapply(cities_df$city, city_tab))),
-
-  # Tab: Climate Projections --------------------------
-  # tabPanel('Regional Climate Projections',
-  #          sidebarLayout(
-  #            # Sidebar -----------------------
-  #            sidebarPanel(
-  #              width = 3,
-  #              style = "height: 550px;",
-  #              sidebar_tags,
-  #              
-  #              sidebar_disclaimer,
-  #              
-  #              selectInput('wb', 'Layer',
-  #                          choices = list('Select one' = '', 
-  #                                         `1. Longest consecutive dry days (CDD)` = c(`1a. CDD 1990` = 'cdd_1990',
-  #                                                                                     `1b. CDD 2020` = 'cdd_2020',
-  #                                                                                     `1c. CDD 1990-2040` = 'cdd_2040._Change1990'),
-  #                                         `2. Average heat wave magnitude index daily (HWMID)` = c(`2a. HWMID 1990` = 'hwmid_1990',
-  #                                                                                                  `2b. HWMID 2020` = 'hwmid_2020',
-  #                                                                                                  `2c. HWMID 1990-2040` = 'hwmid_2040._Change1990'),
-  #                                         `3. Average wet bulb globe temperature (WBGT)` = c(`3a. WBGT 1990` = 'WBGT_1990',
-  #                                                                                            `3b. WBGT 2020` = 'WBGT_2020',
-  #                                                                                            `3c. WBGT 1990-2040` = 'WBGT_2040._Change1990'),
-  #                                         `4. Annual precipitation (PRCP)` = c(`4a. PRCP 1990` = 'prcptot_1990',
-  #                                                                              `4b. PRCP 2020` = 'prcptot_2020',
-  #                                                                              `4c. PRCP 1990-2040` = 'prcptot_2040._Change1990'),
-  #                                         `5. Annual rainfall above 95th percentile (R95P)` = c(`5a. R95P 1990` = 'r95p_1990',
-  #                                                                                               `5b. R95P 2020` = 'r95p_2020',
-  #                                                                                               `5c. R95P 1990-2040` = 'r95p_2040._Change1990'))),
-  #              sliderInput('wb_alpha', 'Opacity', 0, 1, 0.9, step = 0.1, ticks = F),
-  #              hr(),
-  #              textOutput('wb_def')
-  #            ),
-  #            
-  #            # Main panel -----------------------
-  #            mainPanel(
-  #              width = 9,
-  #              leafletOutput('wb_map',
-  #                            height = 550),
-  #              br(),
-  #              imageOutput('wb_plot', width = '50%'),
-  #              br()
-  #            )
-  #          ))
 )
 
 # Server ------------------------------------------------
 server <- function(input, output, session) {
-  # Intro page buttons -----------------------
-  # output$ni_img <- renderImage({list(src = 'nis.png')}, deleteFile = F)
-  # output$no_img <- renderImage(list(src = 'novi_sad.png'), deleteFile = F)
-  # output$pr_img <- renderImage(list(src = 'pristina.png'), deleteFile = F)
-  # output$sa_img <- renderImage(list(src = 'sarajevo.png'), deleteFile = F)
-  # output$ti_img <- renderImage(list(src = 'tirana.png'), deleteFile = F)
-
   # Page navigation --------------------------
   # apply(cities_df, 1, function(city) {
   #   inputId <- paste0('go_', city['prefix'])
@@ -319,6 +271,13 @@ server <- function(input, output, session) {
       } else if (is.null(raster_var) | length(raster_var) <= 1) {
         showNotification(ui = 'No information on this layer for this city',
                          duration = NULL, id = notif_id)
+      } else if (is.function(raster_col)) {
+        leafletProxy(map_id) %>%
+          clearGroup(group = layer_group) %>%
+          addRasterImage(raster_var, opacity = input[[raster_alpha_name]],
+                         project = F, group = layer_group, colors = raster_col) %>%
+          addLegend(colors = raster_col(raster_val), labels = names(raster_val), title = leg_title, layerId = leg_id, opacity = 0.8,
+                    labFormat = labelFormat(suffix = lab_suffix), position = 'bottomright')
       } else {
         leafletProxy(map_id) %>%
           clearGroup(group = layer_group) %>%
@@ -466,8 +425,6 @@ server <- function(input, output, session) {
   output$por_map <- renderLeaflet(basemap(aoi$por)) %>% bindCache('por_basemap')
   output$vic_map <- renderLeaflet(basemap(aoi$vic)) %>% bindCache('vic_basemap')
 
-  
-  
   # Toggle layers ------------------------------
   # # All cities
   lapply(cities_df$prefix, function(prefix) {
@@ -492,9 +449,9 @@ server <- function(input, output, session) {
     raster_discrete(map_name, paste0(prefix, '_ls'), ls[[prefix]], ls_col[[prefix]], ls_val[[prefix]], 'Landslide susceptibility')
     raster_discrete(map_name, paste0(prefix, '_lc'), lc[[prefix]], lc_col[[prefix]], lc_val[[prefix]], 'Land cover')
     road_fn(map_name, paste0(prefix, '_road'), road[[prefix]], road_col[[prefix]])
-    quake_fn(paste0(prefix, '_quake'), '44.542', '18.641')
+    # quake_fn(paste0(prefix, '_quake'), '44.542', '18.641')
+    quake_fn(paste0(prefix, '_quake'), lon = coords[[prefix]]["long"], lat = coords[[prefix]]["lat"])
   })
-  
 
   # Clear layers -----------------------------
   lapply(city_prefixes, clear_layers)
@@ -511,131 +468,6 @@ server <- function(input, output, session) {
     output[[pop_id]] <- renderPlot(pop_plot(pop_csv[[prefix]], city['city'])) %>% bindCache(paste0(prefix, '_pop'))
     output[[wsf_id]] <- renderPlot(wsf_plot(wsf_csv[[prefix]], city['city'])) %>% bindCache(paste0(prefix, '_wsf'))
   })
-
-  # Tab: Climate Projections ------------------------------
-  # Show variable definition ------------------------
-  # output$wb_def <- renderText({
-  #   if (str_detect(input$wb, 'cdd')) {
-  #     'Consecutive Dry Days (CDD) is defined as the maximum number of consecutive days per year when daily precipitation is under 1mm per day. The indicator lists the length of a single longest period and not the number or frequency of such periods.'
-  #   } else if (str_detect(input$wb, 'hwmid')) {
-  #     'The heat wave magnitude index daily (HWMId) merges the duration (days) and the intensity (daily maximum temperature) of prolonged extreme temperature events into a single numerical index.'
-  #   } else if (str_detect(input$wb, 'WBGT')) {
-  #     'Wet Bulb Globe Temperature (WBGT) represents the cooling capacity of the human body through perspiration. This indicator calculates the weighted mean of a function of temperature, relative humidity, and pressure.'
-  #   } else if (str_detect(input$wb, 'prcptot')) {
-  #     'Annual total precipitation shows total precipitation (rainfall and snowfall) per year in mm. It shows what areas receive the most or least rain but does not show in what season and how intensely precipitation is accumulated over the year, e.g., light rain every day or intense rainfall in a few weeks per year.'
-  #   } else if (str_detect(input$wb, 'r95p')) {
-  #     'Annual rainfall above the 95th percentile documents millimeters of rainfall accumulated during days with very heavy rainfall, which is defined as as much or more rain than on 95 percent of the days in the reference period from 1981 to 2010.'
-  #   }
-  # }) %>%
-  #   bindCache(input$wb, 'def')
-
-  # Set up basemap -------------------------
-  # output$wb_map <- renderLeaflet({
-  #   leaflet(wb_cities) %>%
-  #     addProviderTiles('Stamen.TonerLite', group = 'Default',
-  #                      options = providerTileOptions(zIndex = -3)) %>%
-  #     addTiles(group = 'OpenStreetMap',
-  #              options = tileOptions(zIndex = -2)) %>%
-  #     addProviderTiles('Esri.WorldImagery', group = 'Satellite',
-  #                      options = providerTileOptions(zIndex = -1)) %>%
-  #     addLayersControl(baseGroups = c('Default', 'OpenStreetMap', 'Satellite'),
-  #                      options = layersControlOptions(collapsed = F,
-  #                                                     autoZIndex = F)) %>%
-  #     addCircleMarkers(fillColor = 'darkgrey', fillOpacity = 0.8, stroke = F, label = ~city, radius = 5)
-  # })
-
-  # Toggle layers ----------------------------
-  # wb_raster_map <- reactive({
-  #   req(input$wb != '')
-  #   var <- str_split(input$wb, '_', 2)[[1]][1]
-  #   time <- str_split(input$wb, '_', 2)[[1]][2]
-  #   wb_rasters[[var]][[time]]
-  # }) %>%
-  #   bindCache(input$wb)
-  #
-  # wb_pal <- reactive({
-  #   req(input$wb != '')
-  #   if (str_detect(input$wb, 'cdd')) {
-  #     'viridis'
-  #   } else if (str_detect(input$wb, 'hwmid')) {
-  #     'Reds'
-  #   } else if (str_detect(input$wb, 'WBGT')) {
-  #     'Spectral'
-  #   } else if (str_detect(input$wb, 'prcptot')) {
-  #     'Blues'
-  #   } else if (str_detect(input$wb, 'r95p')) {
-  #     'BuPu'
-  #   }
-  # }) %>%
-  #   bindCache(input$wb, 'palette')
-
-  # wb_raster_col_reverse <- reactive({
-  #   req(input$wb != '')
-  #   if (str_detect(input$wb, 'WBGT')) {
-  #     T
-  #   } else {
-  #     F
-  #   }
-  # }) %>%
-  #   bindCache(input$wb, 'reverse')
-  #
-  # wb_raster_col <- reactive({
-  #   req(input$wb != '')
-  #   colorNumeric(wb_pal(), values(wb_raster_map()), na.color = 'transparent',
-  #                reverse = wb_raster_col_reverse())
-  # }) %>%
-  #   bindCache(input$wb, 'color')
-
-  # wb_leg_title <- reactive({
-  #   req(input$wb != '')
-  #   if (str_detect(input$wb, 'cdd')) {
-  #     'Longest consecutive dry days'
-  #   } else if (str_detect(input$wb, 'hwmid')) {
-  #     'Average heat wave magnitude index daily'
-  #   } else if (str_detect(input$wb, 'WBGT')) {
-  #     'Average wet bulb globe temperature'
-  #   } else if (str_detect(input$wb, 'prcptot')) {
-  #     'Annual precipitation'
-  #   } else if (str_detect(input$wb, 'r95p')) {
-  #     'Annual rainfall above 95th percentile'
-  #   }
-  # }) %>%
-  #   bindCache(input$wb, 'leg_title')
-
-  # wb_lab_suffix <- reactive({
-  #   req(input$wb != '')
-  #   if (str_detect(input$wb, 'WBGT')) {
-  #     '°C'
-  #   } else if (str_detect(input$wb, 'prcptot') | str_detect(input$wb, 'r95p')) {
-  #     'mm'
-  #   } else {
-  #     ''
-  #   }
-  # })
-
-  # observe({
-  #   req(input$wb != '')
-  #   leafletProxy('wb_map') %>%
-  #     clearGroup(group = 'wb_raster') %>%
-  #     removeControl('wb_leg') %>%
-  #     addRasterImage(wb_raster_map(), opacity = input$wb_alpha,
-  #                    project = F, group = 'wb_raster', colors = wb_raster_col()) %>%
-  #     addLegend(pal = wb_raster_col(), values = values(wb_raster_map()), title = wb_leg_title(), layerId = 'wb_leg',
-  #               opacity = 0.9, bins = 3,
-  #               labFormat = labelFormat(suffix = wb_lab_suffix()),
-  #               position = 'bottomright')
-  # })
-
-  # Show plot --------------------------------
-#   wb_plot_file <- reactive({
-#     paste0('www/wb_plots/', input$wb, '.png')
-#   }) %>%
-#     bindCache(input$wb, 'plot')
-#
-#   output$wb_plot <- renderImage({
-#     list(src = wb_plot_file(),
-#          width = 512)
-#   }, deleteFile = F)
 }
 
 # Run app ---------------------------------------------------
