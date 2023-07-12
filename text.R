@@ -1,7 +1,8 @@
 # Introduction --------------------------------
+site_title <- 'Cities and Climate Change Technical Workshop'
 p1_1 <- 'Welcome to the'
 p1_2 <- 'Spatial Layers Viewer'
-p1_3 <- 'for the 2023 Climate-Resilient Cities Workshop in Bosnia and Herzegovina. This Viewer provides an interactive and collaborative way to explore some of the key characteristics of your cities and the resilience challenges they face.'
+p1_3 <- 'for the Cities and Climate Change Technical Workshop. This Viewer provides an interactive and collaborative way to explore some of the key characteristics of your cities and the resilience challenges they face.'
 p2 <- 'Select your city from the list on the right or from the City Profiles tab. Then select from the 20 available data layers to view spatial information about your city. The most recently selected layer will appear on the top of the map. By selecting different sets of layers and changing their opacity with the sliders next to each layer name, you can draw insights about your city\'s development and exposure to climate change and disasters.'
 # p3 <- 'You can also select the Regional Climate Projections tab to view historical and projected comparisons of drought conditions, heat, and precipitation across 15 cities in the Balkans. The bottom of the page shows comparative graphs of the cities in 1990 and 2020, as well as the projected change from 1990 to 2040. Note how cities are projected to change relative to one another compared to their historical conditions.'
 p4 <- 'Change the zoom level of your browser to show more or less of the graph underneath the map, or view the graph by scrolling down.'
